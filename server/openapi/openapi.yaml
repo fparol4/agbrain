@@ -1,0 +1,1080 @@
+openapi: 3.1.0
+info:
+  title: Ag Brain API
+  version: 1.0.0
+  description: API de gestão rural para administradores e produtores.
+servers:
+  - url: http://localhost:3333
+    description: Desenvolvimento local
+tags:
+  - name: Health
+  - name: Autenticação
+  - name: Produtores
+  - name: Fazendas
+  - name: Safras
+  - name: Dashboard
+  - name: Auditoria
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Verifica a API e a conexão com o banco
+      operationId: getHealth
+      responses:
+        '200':
+          description: Serviço saudável
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          description: Banco indisponível
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  /api/v1/auth/login:
+    post:
+      tags: [Autenticação]
+      summary: Inicia uma sessão
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+      responses:
+        '200':
+          description: Sessão iniciada; o cookie HttpOnly é retornado em Set-Cookie
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/v1/auth/me:
+    get:
+      tags: [Autenticação]
+      summary: Retorna o usuário autenticado
+      operationId: getSession
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Sessão atual
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/session:
+    delete:
+      tags: [Autenticação]
+      summary: Encerra a sessão
+      operationId: logout
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Sessão encerrada
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/producers:
+    get:
+      tags: [Produtores]
+      summary: Lista produtores
+      description: Exclusivo para administradores.
+      operationId: listProducers
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 160
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/UserStatus'
+      responses:
+        '200':
+          description: Lista paginada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProducerList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Produtores]
+      summary: Cria produtor e usuário de acesso
+      description: Exclusivo para administradores. A senha inicial padrão é `demo123` quando omitida.
+      operationId: createProducer
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProducerInput'
+      responses:
+        '201':
+          description: Produtor criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProducerResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/v1/producers/{idProducer}:
+    parameters:
+      - $ref: '#/components/parameters/IdProducer'
+    get:
+      tags: [Produtores]
+      summary: Detalha um produtor
+      description: Administradores podem consultar qualquer produtor; o produtor consulta somente o próprio cadastro.
+      operationId: getProducer
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Produtor encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProducerResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Produtores]
+      summary: Atualiza um produtor
+      description: Exclusivo para administradores.
+      operationId: updateProducer
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProducerInput'
+      responses:
+        '200':
+          description: Produtor atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProducerResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Produtores]
+      summary: Remove um produtor e seus dados
+      description: Exclusivo para administradores.
+      operationId: deleteProducer
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Produtor removido
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/producers/{idProducer}/farms:
+    parameters:
+      - $ref: '#/components/parameters/IdProducer'
+    get:
+      tags: [Fazendas]
+      summary: Lista fazendas do produtor
+      operationId: listFarms
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            $ref: '#/components/schemas/State'
+      responses:
+        '200':
+          description: Lista paginada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FarmList'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Fazendas]
+      summary: Cria uma fazenda
+      description: Apenas o produtor proprietário pode criar fazendas.
+      operationId: createFarm
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FarmInput'
+      responses:
+        '201':
+          description: Fazenda criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FarmResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/v1/farms/{idFarm}:
+    parameters:
+      - $ref: '#/components/parameters/IdFarm'
+    get:
+      tags: [Fazendas]
+      summary: Detalha uma fazenda
+      operationId: getFarm
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Fazenda encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FarmResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Fazendas]
+      summary: Atualiza uma fazenda
+      description: Apenas o produtor proprietário pode alterar a fazenda.
+      operationId: updateFarm
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFarmInput'
+      responses:
+        '200':
+          description: Fazenda atualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FarmResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Fazendas]
+      summary: Remove uma fazenda
+      description: Apenas o produtor proprietário pode remover a fazenda.
+      operationId: deleteFarm
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Fazenda removida
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/producers/{idProducer}/harvests:
+    get:
+      tags: [Safras]
+      summary: Lista safras fechadas do produtor
+      operationId: listHarvests
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdProducer'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: idFarm
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: year
+          in: query
+          schema:
+            $ref: '#/components/schemas/HarvestYear'
+      responses:
+        '200':
+          description: Lista paginada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HarvestList'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/farms/{idFarm}/harvests:
+    post:
+      tags: [Safras]
+      summary: Cria uma safra anual para a fazenda
+      description: Apenas o produtor proprietário pode criar. Uma fazenda aceita uma safra por ano.
+      operationId: createHarvest
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdFarm'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HarvestInput'
+      responses:
+        '201':
+          description: Safra criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HarvestResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/v1/harvests/{idHarvest}:
+    parameters:
+      - $ref: '#/components/parameters/IdHarvest'
+    patch:
+      tags: [Safras]
+      summary: Atualiza fazenda, ano ou culturas de uma safra
+      operationId: updateHarvest
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHarvestInput'
+      responses:
+        '200':
+          description: Safra atualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HarvestResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Safras]
+      summary: Remove uma safra
+      operationId: deleteHarvest
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Safra removida
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/producers/{idProducer}/dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Consolida os dados do dashboard do produtor
+      operationId: getDashboard
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdProducer'
+        - name: year
+          in: query
+          description: Ano fechado da safra; usa o mais recente quando omitido.
+          schema:
+            $ref: '#/components/schemas/HarvestYear'
+      responses:
+        '200':
+          description: Métricas e séries do dashboard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/audit:
+    get:
+      tags: [Auditoria]
+      summary: Lista todas as ações registradas
+      description: Exclusivo para administradores.
+      operationId: listAuditEvents
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: idUser
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          schema:
+            $ref: '#/components/schemas/AuditAction'
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Eventos paginados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditList'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: adonis-session
+
+  parameters:
+    IdProducer:
+      name: idProducer
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdFarm:
+      name: idFarm
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdHarvest:
+      name: idHarvest
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    Unauthorized:
+      description: Sessão ausente, expirada ou credenciais inválidas
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Usuário sem permissão para o recurso
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflito com um registro existente
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Corpo ou parâmetros inválidos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    UserRole:
+      type: string
+      enum: [ADMIN, PRODUCER]
+    UserStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+    DocumentType:
+      type: string
+      enum: [CPF, CNPJ]
+    State:
+      type: string
+      pattern: '^[A-Z]{2}$'
+      example: MT
+    HarvestYear:
+      type: integer
+      minimum: 2000
+      maximum: 2100
+      example: 2026
+    AuditAction:
+      type: string
+      enum: [LOGIN, LOGOUT, CREATE, UPDATE, DELETE, VIEW_DASHBOARD]
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+        requestId:
+          type: string
+
+    Health:
+      type: object
+      required: [status, checks, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        checks:
+          type: object
+          required: [database]
+          properties:
+            database:
+              type: string
+              enum: [up, down]
+        timestamp:
+          type: string
+          format: date-time
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 7
+          maxLength: 128
+
+    SessionUser:
+      type: object
+      required: [idUser, name, email, role]
+      properties:
+        idUser:
+          type: string
+          format: uuid
+        idProducer:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+    SessionResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/SessionUser'
+
+    PaginationMeta:
+      type: object
+      required: [total]
+      properties:
+        page:
+          type: integer
+        currentPage:
+          type: integer
+        limit:
+          type: integer
+        perPage:
+          type: integer
+        total:
+          type: integer
+        lastPage:
+          type: integer
+      additionalProperties: true
+
+    Producer:
+      type: object
+      required:
+        [
+          idProducer,
+          idUser,
+          name,
+          documentType,
+          document,
+          email,
+          city,
+          state,
+          status,
+          farmCount,
+          totalHectares,
+        ]
+      properties:
+        idProducer:
+          type: string
+          format: uuid
+        idUser:
+          type: string
+          format: uuid
+        name:
+          type: string
+        documentType:
+          $ref: '#/components/schemas/DocumentType'
+        document:
+          type: string
+        email:
+          type: string
+          format: email
+        city:
+          type: string
+        state:
+          $ref: '#/components/schemas/State'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        farmCount:
+          type: integer
+        totalHectares:
+          type: number
+    CreateProducerInput:
+      type: object
+      required: [name, documentType, document, email, city, state, status]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 160
+        documentType:
+          $ref: '#/components/schemas/DocumentType'
+        document:
+          type: string
+        email:
+          type: string
+          format: email
+        city:
+          type: string
+        state:
+          $ref: '#/components/schemas/State'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        password:
+          type: string
+          minLength: 7
+          maxLength: 128
+    UpdateProducerInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 160
+        documentType:
+          $ref: '#/components/schemas/DocumentType'
+        document:
+          type: string
+        email:
+          type: string
+          format: email
+        city:
+          type: string
+        state:
+          $ref: '#/components/schemas/State'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+    ProducerResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Producer'
+    ProducerList:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Producer'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    Farm:
+      type: object
+      required: [idFarm, idProducer, name, city, state, totalArea, agriculturalArea, vegetationArea]
+      properties:
+        idFarm:
+          type: string
+          format: uuid
+        idProducer:
+          type: string
+          format: uuid
+        name:
+          type: string
+        city:
+          type: string
+        state:
+          $ref: '#/components/schemas/State'
+        totalArea:
+          type: number
+          exclusiveMinimum: 0
+        agriculturalArea:
+          type: number
+          minimum: 0
+        vegetationArea:
+          type: number
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    FarmInput:
+      type: object
+      required: [name, city, state, totalArea, agriculturalArea, vegetationArea]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 160
+        city:
+          type: string
+          minLength: 2
+          maxLength: 120
+        state:
+          $ref: '#/components/schemas/State'
+        totalArea:
+          type: number
+          exclusiveMinimum: 0
+        agriculturalArea:
+          type: number
+          minimum: 0
+        vegetationArea:
+          type: number
+          minimum: 0
+    UpdateFarmInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 160
+        city:
+          type: string
+          minLength: 2
+          maxLength: 120
+        state:
+          $ref: '#/components/schemas/State'
+        totalArea:
+          type: number
+          exclusiveMinimum: 0
+        agriculturalArea:
+          type: number
+          minimum: 0
+        vegetationArea:
+          type: number
+          minimum: 0
+    FarmResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Farm'
+    FarmList:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Farm'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    Crop:
+      type: object
+      required: [idCrop, name]
+      properties:
+        idCrop:
+          type: string
+          format: uuid
+        name:
+          type: string
+    Harvest:
+      type: object
+      required: [idHarvest, idFarm, idProducer, farmName, producerName, year, crops]
+      properties:
+        idHarvest:
+          type: string
+          format: uuid
+        idFarm:
+          type: string
+          format: uuid
+        idProducer:
+          type: string
+          format: uuid
+        farmName:
+          type: string
+        producerName:
+          type: string
+        year:
+          $ref: '#/components/schemas/HarvestYear'
+        crops:
+          type: array
+          items:
+            $ref: '#/components/schemas/Crop'
+    HarvestInput:
+      type: object
+      required: [year, crops]
+      properties:
+        year:
+          $ref: '#/components/schemas/HarvestYear'
+        crops:
+          type: array
+          maxItems: 30
+          items:
+            type: string
+            minLength: 2
+            maxLength: 100
+    UpdateHarvestInput:
+      type: object
+      properties:
+        idFarm:
+          type: string
+          format: uuid
+        year:
+          $ref: '#/components/schemas/HarvestYear'
+        crops:
+          type: array
+          maxItems: 30
+          items:
+            type: string
+    HarvestResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Harvest'
+    HarvestList:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Harvest'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    ChartPoint:
+      type: object
+      required: [name, value]
+      properties:
+        name:
+          type: string
+        value:
+          type: number
+    AreaProgressPoint:
+      type: object
+      required: [month, hectares]
+      properties:
+        month:
+          type: string
+          example: ago
+        hectares:
+          type: number
+    Dashboard:
+      type: object
+      required:
+        [
+          idProducer,
+          producerName,
+          year,
+          availableYears,
+          totalFarms,
+          totalHectares,
+          activeCrops,
+          states,
+          crops,
+          soilUse,
+          areaProgress,
+        ]
+      properties:
+        idProducer:
+          type: string
+          format: uuid
+        producerName:
+          type: string
+        year:
+          $ref: '#/components/schemas/HarvestYear'
+        availableYears:
+          type: array
+          items:
+            $ref: '#/components/schemas/HarvestYear'
+        totalFarms:
+          type: integer
+        totalHectares:
+          type: number
+        activeCrops:
+          type: integer
+        states:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChartPoint'
+        crops:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChartPoint'
+        soilUse:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChartPoint'
+        areaProgress:
+          type: array
+          items:
+            $ref: '#/components/schemas/AreaProgressPoint'
+    DashboardResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Dashboard'
+
+    AuditEvent:
+      type: object
+      required:
+        [idAudit, userName, userRole, action, resourceType, resourceName, metadata, occurredAt]
+      properties:
+        idAudit:
+          type: string
+          format: uuid
+        idUser:
+          type: [string, 'null']
+          format: uuid
+        userName:
+          type: string
+        userRole:
+          $ref: '#/components/schemas/UserRole'
+        action:
+          $ref: '#/components/schemas/AuditAction'
+        resourceType:
+          type: string
+        resourceName:
+          type: string
+        idResource:
+          type: [string, 'null']
+          format: uuid
+        requestId:
+          type: [string, 'null']
+        metadata:
+          type: object
+          additionalProperties: true
+        occurredAt:
+          type: string
+          format: date-time
+    AuditList:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEvent'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
