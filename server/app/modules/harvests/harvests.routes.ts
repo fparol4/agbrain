@@ -5,6 +5,7 @@ const HarvestsController = () => import('#modules/harvests/harvests.controller')
 
 router
   .group(() => {
+    router.get('/harvests', [HarvestsController, 'all'])
     router.get('/producers/:idProducer/harvests', [HarvestsController, 'index'])
     router.post('/farms/:idFarm/harvests', [HarvestsController, 'store'])
     router.patch('/harvests/:idHarvest', [HarvestsController, 'update'])

@@ -35,3 +35,13 @@ export const farmListValidator = vine.create(
     limit: vine.number().min(1).max(100).optional(),
   })
 )
+
+export const adminFarmListValidator = vine.create(
+  vine.object({
+    idProducer: vine.string().uuid().optional(),
+    search: vine.string().trim().maxLength(160).optional(),
+    state: state.optional(),
+    page: vine.number().min(1).optional(),
+    limit: vine.number().min(1).max(100).optional(),
+  })
+)

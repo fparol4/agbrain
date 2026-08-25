@@ -13,7 +13,7 @@ export class AuthorizationService {
   }
 
   async assertCanWriteProducerResources(user: User, idProducer: string) {
-    if (user.role !== 'PRODUCER') throw new ForbiddenException()
+    if (user.role === 'ADMIN') return
     await this.assertProducerOwner(user, idProducer)
   }
 

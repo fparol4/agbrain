@@ -4,6 +4,7 @@ import { normalizePagination, type PaginationInput } from '#shared/pagination/pa
 import db from '@adonisjs/lucid/services/db'
 
 interface ListHarvestsInput extends PaginationInput {
+  idProducer?: string
   idFarm?: string
   year?: number
 }
@@ -40,8 +41,13 @@ export class HarvestRepository {
   }
 
   async list(idProducer: string, input: ListHarvestsInput) {
+    return this.listAll({ ...input, idProducer })
+  }
+
+  async listAll(input: ListHarvestsInput) {
     const { page, limit, offset } = normalizePagination(input)
-    const query = this.baseQuery().where('p.id_producer', idProducer)
+    const query = this.baseQuery()
+    if (input.idProducer) query.where('p.id_producer', input.idProducer)
     if (input.idFarm) query.where('h.id_farm', input.idFarm)
     if (input.year) query.where('h.year', input.year)
 
@@ -51,10 +57,8 @@ export class HarvestRepository {
       .limit(limit)
       .offset(offset)) as HarvestRow[]
 
-    const countQuery = db
-      .from('harvests as h')
-      .innerJoin('farms as f', 'f.id_farm', 'h.id_farm')
-      .where('f.id_producer', idProducer)
+    const countQuery = db.from('harvests as h').innerJoin('farms as f', 'f.id_farm', 'h.id_farm')
+    if (input.idProducer) countQuery.where('f.id_producer', input.idProducer)
     if (input.idFarm) countQuery.where('h.id_farm', input.idFarm)
     if (input.year) countQuery.where('h.year', input.year)
     const [{ total }] = await countQuery.count('* as total')

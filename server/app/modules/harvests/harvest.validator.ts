@@ -26,3 +26,13 @@ export const harvestListValidator = vine.create(
     limit: vine.number().min(1).max(100).optional(),
   })
 )
+
+export const adminHarvestListValidator = vine.create(
+  vine.object({
+    idProducer: vine.string().uuid().optional(),
+    idFarm: vine.string().uuid().optional(),
+    year: year.optional(),
+    page: vine.number().min(1).optional(),
+    limit: vine.number().min(1).max(100).optional(),
+  })
+)

@@ -4,25 +4,28 @@ Aplicação de gestão rural construída como desafio técnico. O projeto combin
 
 ## Executar o projeto
 
-Suba a API, o banco, as migrations e os dados de demonstração:
+Suba banco, API, migrations, dados de demonstração e cliente de produção:
 
 ```bash
 docker compose up --build
 ```
 
-Em outro terminal, execute o frontend:
+Para desenvolver o frontend com hot reload, suba apenas a infraestrutura e execute o Vite em outro terminal:
 
 ```bash
+docker compose up -d postgres api
 cd client
 npm install
 npm run dev
 ```
 
 - Frontend: http://localhost:5173
-- API: http://localhost:3333
-- Health check: http://localhost:3333/health
+- API no Compose: http://localhost:3334
+- Health check no Compose: http://localhost:3334/health
 
 O frontend está conectado à API por um gateway tipado e envia o cookie de sessão com `credentials: 'include'`. Dashboard, produtores, fazendas, safras e auditoria usam dados persistidos no PostgreSQL; os dados em memória permanecem apenas como implementação injetada nos testes da interface.
+
+Administradores entram pelo dashboard geral e podem alternar a visualização para um produtor no seletor da barra lateral. O contexto escolhido é mantido na URL e aplicado às abas Dashboard, Fazendas e Safras; na visão geral, essas páginas consolidam todos os produtores.
 
 ## Acessos de demonstração
 

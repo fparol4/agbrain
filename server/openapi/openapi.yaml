@@ -245,7 +245,7 @@ paths:
     post:
       tags: [Fazendas]
       summary: Cria uma fazenda
-      description: Apenas o produtor proprietário pode criar fazendas.
+      description: Administradores podem criar para qualquer produtor; produtores, somente para o próprio cadastro.
       operationId: createFarm
       security:
         - cookieAuth: []
@@ -266,6 +266,34 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
+
+  /api/v1/farms:
+    get:
+      tags: [Fazendas]
+      summary: Lista fazendas no contexto administrativo
+      description: Exclusivo para administradores. Sem idProducer, retorna fazendas de todos os produtores.
+      operationId: listAllFarms
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: idProducer
+          in: query
+          schema: { type: string, format: uuid }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: state
+          in: query
+          schema: { $ref: '#/components/schemas/State' }
+      responses:
+        '200':
+          description: Lista paginada com o nome do produtor responsável
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FarmList' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /api/v1/farms/{idFarm}:
     parameters:
@@ -290,7 +318,7 @@ paths:
     patch:
       tags: [Fazendas]
       summary: Atualiza uma fazenda
-      description: Apenas o produtor proprietário pode alterar a fazenda.
+      description: Administradores podem alterar qualquer fazenda; produtores, somente as próprias.
       operationId: updateFarm
       security:
         - cookieAuth: []
@@ -316,7 +344,7 @@ paths:
     delete:
       tags: [Fazendas]
       summary: Remove uma fazenda
-      description: Apenas o produtor proprietário pode remover a fazenda.
+      description: Administradores podem remover qualquer fazenda; produtores, somente as próprias.
       operationId: deleteFarm
       security:
         - cookieAuth: []
@@ -362,7 +390,7 @@ paths:
     post:
       tags: [Safras]
       summary: Cria uma safra anual para a fazenda
-      description: Apenas o produtor proprietário pode criar. Uma fazenda aceita uma safra por ano.
+      description: Administradores podem criar para qualquer produtor; produtores, somente nas próprias fazendas. Uma fazenda aceita uma safra por ano.
       operationId: createHarvest
       security:
         - cookieAuth: []
@@ -388,12 +416,41 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /api/v1/harvests:
+    get:
+      tags: [Safras]
+      summary: Lista safras no contexto administrativo
+      description: Exclusivo para administradores. Sem idProducer, retorna safras de todos os produtores.
+      operationId: listAllHarvests
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: idProducer
+          in: query
+          schema: { type: string, format: uuid }
+        - name: idFarm
+          in: query
+          schema: { type: string, format: uuid }
+        - name: year
+          in: query
+          schema: { $ref: '#/components/schemas/HarvestYear' }
+      responses:
+        '200':
+          description: Lista paginada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HarvestList' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /api/v1/harvests/{idHarvest}:
     parameters:
       - $ref: '#/components/parameters/IdHarvest'
     patch:
       tags: [Safras]
       summary: Atualiza fazenda, ano ou culturas de uma safra
+      description: Administradores podem alterar qualquer safra; produtores, somente as safras das próprias fazendas.
       operationId: updateHarvest
       security:
         - cookieAuth: []
@@ -421,6 +478,7 @@ paths:
     delete:
       tags: [Safras]
       summary: Remove uma safra
+      description: Administradores podem remover qualquer safra; produtores, somente as safras das próprias fazendas.
       operationId: deleteHarvest
       security:
         - cookieAuth: []
@@ -457,6 +515,30 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /api/v1/dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Consolida a visão geral administrativa
+      description: Exclusivo para administradores; agrega produtores, fazendas, safras e culturas.
+      operationId: getGeneralDashboard
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: year
+          in: query
+          schema: { $ref: '#/components/schemas/HarvestYear' }
+      responses:
+        '200':
+          description: Métricas e séries gerais
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/GeneralDashboard' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /api/v1/audit:
     get:
@@ -804,6 +886,8 @@ components:
         idProducer:
           type: string
           format: uuid
+        producerName:
+          type: string
         name:
           type: string
         city:
@@ -983,6 +1067,7 @@ components:
       type: object
       required:
         [
+          scope,
           idProducer,
           producerName,
           year,
@@ -996,6 +1081,9 @@ components:
           areaProgress,
         ]
       properties:
+        scope:
+          type: string
+          const: PRODUCER
         idProducer:
           type: string
           format: uuid
@@ -1029,6 +1117,67 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AreaProgressPoint'
+    GeneralDashboard:
+      type: object
+      required:
+        [
+          scope,
+          year,
+          availableYears,
+          totalProducers,
+          activeProducers,
+          inactiveProducers,
+          totalFarms,
+          totalHectares,
+          activeCrops,
+          producerStatus,
+          producerStates,
+          farmStates,
+          crops,
+          soilUse,
+          areaProgress,
+          topProducers,
+        ]
+      properties:
+        scope: { type: string, const: GENERAL }
+        year: { $ref: '#/components/schemas/HarvestYear' }
+        availableYears:
+          type: array
+          items: { $ref: '#/components/schemas/HarvestYear' }
+        totalProducers: { type: integer }
+        activeProducers: { type: integer }
+        inactiveProducers: { type: integer }
+        totalFarms: { type: integer }
+        totalHectares: { type: number }
+        activeCrops: { type: integer }
+        producerStatus:
+          type: array
+          items: { $ref: '#/components/schemas/ChartPoint' }
+        producerStates:
+          type: array
+          items: { $ref: '#/components/schemas/ChartPoint' }
+        farmStates:
+          type: array
+          items: { $ref: '#/components/schemas/ChartPoint' }
+        crops:
+          type: array
+          items: { $ref: '#/components/schemas/ChartPoint' }
+        soilUse:
+          type: array
+          items: { $ref: '#/components/schemas/ChartPoint' }
+        areaProgress:
+          type: array
+          items: { $ref: '#/components/schemas/AreaProgressPoint' }
+        topProducers:
+          type: array
+          items:
+            type: object
+            required: [idProducer, name, farmCount, totalHectares]
+            properties:
+              idProducer: { type: string, format: uuid }
+              name: { type: string }
+              farmCount: { type: integer }
+              totalHectares: { type: number }
     DashboardResponse:
       type: object
       required: [data]

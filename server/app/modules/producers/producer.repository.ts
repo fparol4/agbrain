@@ -40,11 +40,12 @@ export class ProducerRepository {
       if (input.status) query.where('u.status', input.status)
       if (input.search) {
         const search = `%${input.search.toLowerCase()}%`
+        const document = input.search.replace(/\D/g, '')
         query.where((builder) => {
-          builder
+          const textSearch = builder
             .whereRaw('LOWER(p.name) LIKE ?', [search])
             .orWhereRaw('LOWER(u.email) LIKE ?', [search])
-            .orWhere('p.document', 'like', `%${input.search?.replace(/\D/g, '')}%`)
+          if (document) textSearch.orWhere('p.document', 'like', `%${document}%`)
         })
       }
       return query

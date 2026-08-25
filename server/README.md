@@ -40,13 +40,13 @@ Os controllers apenas validam a entrada, acionam um caso de uso e formatam a res
 
 ## Permissões
 
-| Recurso    | Administrador                               | Produtor                                  |
-| ---------- | ------------------------------------------- | ----------------------------------------- |
-| Produtores | listar, criar, consultar, alterar e remover | consultar o próprio cadastro              |
-| Fazendas   | consultar qualquer produtor                 | consultar e gerenciar somente as próprias |
-| Safras     | consultar qualquer produtor                 | consultar e gerenciar somente as próprias |
-| Dashboard  | visualizar qualquer produtor                | visualizar somente o próprio              |
-| Auditoria  | visualizar todos os eventos                 | sem acesso                                |
+| Recurso    | Administrador                                 | Produtor                                  |
+| ---------- | --------------------------------------------- | ----------------------------------------- |
+| Produtores | listar, criar, consultar, alterar e remover   | consultar o próprio cadastro              |
+| Fazendas   | consultar e gerenciar qualquer produtor       | consultar e gerenciar somente as próprias |
+| Safras     | consultar e gerenciar qualquer produtor       | consultar e gerenciar somente as próprias |
+| Dashboard  | visualizar a visão geral ou qualquer produtor | visualizar somente o próprio              |
+| Auditoria  | visualizar todos os eventos                   | sem acesso                                |
 
 ## Desenvolvimento local
 
@@ -62,7 +62,7 @@ npm run db:seed
 npm run dev
 ```
 
-O PostgreSQL fica disponível em `localhost:5432` e a API em `localhost:3333`.
+O PostgreSQL fica disponível em `localhost:5433` e a API em `localhost:3333`. Para usar outra porta no host, defina `POSTGRES_PORT` no Compose e mantenha `DB_PORT` com o mesmo valor no ambiente local da API. Dentro do Compose, a API continua conectando ao PostgreSQL pela porta interna `5432`.
 
 Se o volume do PostgreSQL já existia antes da criação do banco de testes, crie-o uma única vez:
 
@@ -98,9 +98,9 @@ O contrato OpenAPI 3.1 está em [openapi/openapi.yaml](openapi/openapi.yaml). Ro
 
 - `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `DELETE /api/v1/auth/session`
 - `/api/v1/producers`
-- `/api/v1/producers/{idProducer}/farms` e `/api/v1/farms/{idFarm}`
-- `/api/v1/producers/{idProducer}/harvests`, `/api/v1/farms/{idFarm}/harvests` e `/api/v1/harvests/{idHarvest}`
-- `GET /api/v1/producers/{idProducer}/dashboard`
+- `GET /api/v1/farms`, `/api/v1/producers/{idProducer}/farms` e `/api/v1/farms/{idFarm}`
+- `GET /api/v1/harvests`, `/api/v1/producers/{idProducer}/harvests`, `/api/v1/farms/{idFarm}/harvests` e `/api/v1/harvests/{idHarvest}`
+- `GET /api/v1/dashboard` e `GET /api/v1/producers/{idProducer}/dashboard`
 - `GET /api/v1/audit`
 - `GET /health`
 
