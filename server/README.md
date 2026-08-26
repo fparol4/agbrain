@@ -1,123 +1,60 @@
 # Ag Brain API
 
-API REST modular para gestão de produtores, fazendas, safras anuais, dashboard e auditoria.
+Small NestJS API for an administrator to manage producers, farms, harvests, and view a general or producer-filtered dashboard.
 
-## Stack e decisões
+## Stack
 
-- AdonisJS 7 e TypeScript para HTTP, validação, autenticação e ciclo de vida da aplicação.
-- Lucid ORM sobre PostgreSQL. Ele foi escolhido em vez do Drizzle porque integra nativamente migrations, models, transações, sessões e os utilitários de teste do AdonisJS, sem perder as consultas SQL explícitas necessárias ao dashboard.
-- Sessão armazenada no banco e enviada em cookie `HttpOnly`.
-- UUID em todos os identificadores de domínio, nomeados pelo recurso: `idUser`, `idProducer`, `idFarm`, `idHarvest`, `idCrop` e `idAudit`.
-- VineJS na borda HTTP e constraints no PostgreSQL como segunda camada de integridade.
-- Culturas normalizadas no catálogo `crops`; safras representam anos fechados, como Safra 2025 e Safra 2026.
-- Histórico de área em `farm_area_events`, usado na série mensal do dashboard.
-- Auditoria imutável para login, logout, criação, alteração, exclusão e visualização do dashboard.
+- Node.js 24, NestJS, TypeScript
+- TypeORM and PostgreSQL 17
+- Opaque database sessions in an `HttpOnly` cookie
+- `validation-br` for CPF and numeric/alphanumeric CNPJ validation
+- Vitest for direct-method unit tests and live-server E2E tests
 
-## Arquitetura
+## Structure
 
 ```text
-app/
-├── core/
-│   ├── auth/              # regras de autorização entre papéis
-│   ├── errors/            # erros de domínio transportáveis por HTTP
-│   └── http/              # concerns da camada HTTP, como request logging
-├── modules/
-│   └── <module>/
-│       ├── use-cases/     # orquestração de cada ação da aplicação
-│       ├── services/      # regras e consultas específicas do domínio
-│       ├── *.controller.ts
-│       ├── *.model.ts
-│       ├── *.repository.ts
-│       ├── *.routes.ts
-│       └── *.validator.ts
-└── shared/
-    ├── documents/         # CPF/CNPJ
-    ├── ids/               # UUID
-    └── pagination/
+src/
+├── core/       # authentication guard, errors, HTTP behavior
+├── modules/    # auth, producers, farms, harvests, dashboard, audit, health
+├── shared/     # document, decimal, and pagination helpers
+└── settings/   # environment, database, migrations, seed
 ```
 
-Os controllers apenas validam a entrada, acionam um caso de uso e formatam a resposta. Autorização e regras de negócio não ficam nas rotas.
+Handlers only handle HTTP. Use cases express application behavior. Module services contain persistence and reusable module operations. TypeORM repositories are injected directly; there are no custom repository classes.
 
-## Permissões
-
-| Recurso    | Administrador                                 | Produtor                                  |
-| ---------- | --------------------------------------------- | ----------------------------------------- |
-| Produtores | listar, criar, consultar, alterar e remover   | consultar o próprio cadastro              |
-| Fazendas   | consultar e gerenciar qualquer produtor       | consultar e gerenciar somente as próprias |
-| Safras     | consultar e gerenciar qualquer produtor       | consultar e gerenciar somente as próprias |
-| Dashboard  | visualizar a visão geral ou qualquer produtor | visualizar somente o próprio              |
-| Auditoria  | visualizar todos os eventos                   | sem acesso                                |
-
-## Desenvolvimento local
-
-Requisitos: Node.js 24, npm 11, Docker e Docker Compose.
+## Run locally
 
 ```bash
 docker compose up -d postgres
 cd server
-npm install
 cp .env.example .env
-npm run db:migrate
+npm install
 npm run db:seed
 npm run dev
 ```
 
-O PostgreSQL fica disponível em `localhost:5433` e a API em `localhost:3333`. Para usar outra porta no host, defina `POSTGRES_PORT` no Compose e mantenha `DB_PORT` com o mesmo valor no ambiente local da API. Dentro do Compose, a API continua conectando ao PostgreSQL pela porta interna `5432`.
+Migrations run automatically when the datasource starts. The API listens on `http://localhost:3333`. The default seed credentials come from `ADMIN_EMAIL` and `ADMIN_PASSWORD`; change them outside local development.
 
-Se o volume do PostgreSQL já existia antes da criação do banco de testes, crie-o uma única vez:
+## API
 
-```bash
-docker compose exec postgres createdb -U agbrain agbrain_test
-```
+- `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `DELETE /api/v1/auth/session`
+- CRUD `/api/v1/producers`
+- CRUD `/api/v1/farms`, filterable by `idProducer`, `state`, and `search`
+- CRUD `/api/v1/harvests`, filterable by `idProducer`, `idFarm`, and `year`
+- `GET /api/v1/dashboard?year=2026&idProducer=<optional UUID>`
+- `GET /api/v1/audits`, filterable by `operation`, `resource`, `outcome`, `idActor`, `from`, `to`, `search`
+- `GET /health`
 
-## Ambiente completo com Docker
+The static contract is in [`openapi/openapi.yaml`](openapi/openapi.yaml). Tests take precedence if documentation and tested behavior ever disagree.
 
-Na raiz do repositório:
-
-```bash
-docker compose up --build
-```
-
-Nesse modo, a API aguarda o PostgreSQL, executa migrations e o seed idempotente, e então inicia o servidor. `SESSION_SECURE_COOKIE=false` existe apenas para permitir a demonstração local via HTTP; em um deploy HTTPS, use `true`.
-
-## Qualidade e testes
+## Quality
 
 ```bash
-npm run format
-npm run lint
+npm run format:check
 npm run typecheck
-npm test
+npm run test:unit
+npm run test:e2e
 npm run build
 ```
 
-Os testes unitários cobrem CPF/CNPJ, alocação de área e normalização de culturas. Os funcionais usam PostgreSQL real e cobrem sessão, papéis, isolamento entre produtores, CRUD, safras, dashboard e auditoria. Cada teste funcional roda em transação e é revertido ao final.
-
-## Contrato HTTP
-
-O contrato OpenAPI 3.1 está em [openapi/openapi.yaml](openapi/openapi.yaml). Rotas principais:
-
-- `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `DELETE /api/v1/auth/session`
-- `/api/v1/producers`
-- `GET /api/v1/farms`, `/api/v1/producers/{idProducer}/farms` e `/api/v1/farms/{idFarm}`
-- `GET /api/v1/harvests`, `/api/v1/producers/{idProducer}/harvests`, `/api/v1/farms/{idFarm}/harvests` e `/api/v1/harvests/{idHarvest}`
-- `GET /api/v1/dashboard` e `GET /api/v1/producers/{idProducer}/dashboard`
-- `GET /api/v1/audit`
-- `GET /health`
-
-Para chamadas do navegador, envie credenciais com `credentials: 'include'`. CORS aceita somente a origem definida em `CLIENT_URL`.
-
-## Respostas de erro
-
-Erros de domínio seguem o formato:
-
-```json
-{
-  "error": {
-    "code": "E_FORBIDDEN",
-    "message": "Você não possui permissão para executar esta ação."
-  },
-  "requestId": "..."
-}
-```
-
-O `requestId` também aparece nos logs estruturados e facilita rastrear uma chamada ponta a ponta.
+Unit tests call methods directly with plain mocks. E2E tests start the complete HTTP server on an ephemeral port and use the real PostgreSQL test database. Every intentional application error branch has one focused test.

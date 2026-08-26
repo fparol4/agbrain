@@ -2,1228 +2,485 @@ openapi: 3.1.0
 info:
   title: Ag Brain API
   version: 1.0.0
-  description: API de gestão rural para administradores e produtores.
+  description: Admin-only rural management API.
 servers:
   - url: http://localhost:3333
-    description: Desenvolvimento local
-tags:
-  - name: Health
-  - name: Autenticação
-  - name: Produtores
-  - name: Fazendas
-  - name: Safras
-  - name: Dashboard
-  - name: Auditoria
 paths:
   /health:
     get:
-      tags: [Health]
-      summary: Verifica a API e a conexão com o banco
-      operationId: getHealth
+      security: []
       responses:
-        '200':
-          description: Serviço saudável
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Health'
-        '503':
-          description: Banco indisponível
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Health'
-
+        "200": { description: Database is ready }
+        "503": { description: Database is unavailable }
   /api/v1/auth/login:
     post:
-      tags: [Autenticação]
-      summary: Inicia uma sessão
-      operationId: login
+      security: []
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/LoginInput'
+            schema: { $ref: "#/components/schemas/LoginInput" }
       responses:
-        '200':
-          description: Sessão iniciada; o cookie HttpOnly é retornado em Set-Cookie
-          headers:
-            Set-Cookie:
-              schema:
-                type: string
+        "200":
+          description: Authenticated; returns the HttpOnly session cookie.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/SessionResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-
+              schema: { $ref: "#/components/schemas/SessionResponse" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/v1/auth/me:
     get:
-      tags: [Autenticação]
-      summary: Retorna o usuário autenticado
-      operationId: getSession
-      security:
-        - cookieAuth: []
       responses:
-        '200':
-          description: Sessão atual
+        "200":
+          description: Current administrator
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/SessionResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
+              schema: { $ref: "#/components/schemas/SessionResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/v1/auth/session:
     delete:
-      tags: [Autenticação]
-      summary: Encerra a sessão
-      operationId: logout
-      security:
-        - cookieAuth: []
       responses:
-        '204':
-          description: Sessão encerrada
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
+        "204": { description: Session deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/v1/producers:
     get:
-      tags: [Produtores]
-      summary: Lista produtores
-      description: Exclusivo para administradores.
-      operationId: listProducers
-      security:
-        - cookieAuth: []
       parameters:
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
-        - name: search
-          in: query
-          schema:
-            type: string
-            maxLength: 160
-        - name: status
-          in: query
-          schema:
-            $ref: '#/components/schemas/UserStatus'
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/Limit" }
+        - { name: search, in: query, schema: { type: string } }
+        - {
+            name: status,
+            in: query,
+            schema: { $ref: "#/components/schemas/ProducerStatus" },
+          }
       responses:
-        '200':
-          description: Lista paginada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProducerList'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "200": { description: Paginated producers }
+        "401": { $ref: "#/components/responses/Unauthorized" }
     post:
-      tags: [Produtores]
-      summary: Cria produtor e usuário de acesso
-      description: Exclusivo para administradores. A senha inicial padrão é `demo123` quando omitida.
-      operationId: createProducer
-      security:
-        - cookieAuth: []
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/CreateProducerInput'
+            schema: { $ref: "#/components/schemas/CreateProducerInput" }
       responses:
-        '201':
-          description: Produtor criado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProducerResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-
-  /api/v1/producers/{idProducer}:
+        "201": { description: Producer created }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/BusinessRuleError" }
+  /api/v1/producers/{id}:
     parameters:
-      - $ref: '#/components/parameters/IdProducer'
+      - {
+          name: id,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
     get:
-      tags: [Produtores]
-      summary: Detalha um produtor
-      description: Administradores podem consultar qualquer produtor; o produtor consulta somente o próprio cadastro.
-      operationId: getProducer
-      security:
-        - cookieAuth: []
       responses:
-        '200':
-          description: Produtor encontrado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProducerResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200": { description: Producer }
+        "404": { $ref: "#/components/responses/NotFound" }
     patch:
-      tags: [Produtores]
-      summary: Atualiza um produtor
-      description: Exclusivo para administradores.
-      operationId: updateProducer
-      security:
-        - cookieAuth: []
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateProducerInput'
+            schema: { $ref: "#/components/schemas/UpdateProducerInput" }
       responses:
-        '200':
-          description: Produtor atualizado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProducerResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/ValidationError'
+        "200": { description: Producer updated }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/BusinessRuleError" }
     delete:
-      tags: [Produtores]
-      summary: Remove um produtor e seus dados
-      description: Exclusivo para administradores.
-      operationId: deleteProducer
-      security:
-        - cookieAuth: []
       responses:
-        '204':
-          description: Produtor removido
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /api/v1/producers/{idProducer}/farms:
-    parameters:
-      - $ref: '#/components/parameters/IdProducer'
-    get:
-      tags: [Fazendas]
-      summary: Lista fazendas do produtor
-      operationId: listFarms
-      security:
-        - cookieAuth: []
-      parameters:
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
-        - name: search
-          in: query
-          schema:
-            type: string
-        - name: state
-          in: query
-          schema:
-            $ref: '#/components/schemas/State'
-      responses:
-        '200':
-          description: Lista paginada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FarmList'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-    post:
-      tags: [Fazendas]
-      summary: Cria uma fazenda
-      description: Administradores podem criar para qualquer produtor; produtores, somente para o próprio cadastro.
-      operationId: createFarm
-      security:
-        - cookieAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/FarmInput'
-      responses:
-        '201':
-          description: Fazenda criada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FarmResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-
+        "204": { description: Producer deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/v1/farms:
     get:
-      tags: [Fazendas]
-      summary: Lista fazendas no contexto administrativo
-      description: Exclusivo para administradores. Sem idProducer, retorna fazendas de todos os produtores.
-      operationId: listAllFarms
-      security:
-        - cookieAuth: []
       parameters:
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
-        - name: idProducer
-          in: query
-          schema: { type: string, format: uuid }
-        - name: search
-          in: query
-          schema: { type: string }
-        - name: state
-          in: query
-          schema: { $ref: '#/components/schemas/State' }
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/Limit" }
+        - {
+            name: idProducer,
+            in: query,
+            schema: { type: string, format: uuid },
+          }
+        - { name: search, in: query, schema: { type: string } }
+        - {
+            name: state,
+            in: query,
+            schema: { type: string, minLength: 2, maxLength: 2 },
+          }
       responses:
-        '200':
-          description: Lista paginada com o nome do produtor responsável
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/FarmList' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-
-  /api/v1/farms/{idFarm}:
-    parameters:
-      - $ref: '#/components/parameters/IdFarm'
-    get:
-      tags: [Fazendas]
-      summary: Detalha uma fazenda
-      operationId: getFarm
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          description: Fazenda encontrada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FarmResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    patch:
-      tags: [Fazendas]
-      summary: Atualiza uma fazenda
-      description: Administradores podem alterar qualquer fazenda; produtores, somente as próprias.
-      operationId: updateFarm
-      security:
-        - cookieAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateFarmInput'
-      responses:
-        '200':
-          description: Fazenda atualizada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FarmResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-    delete:
-      tags: [Fazendas]
-      summary: Remove uma fazenda
-      description: Administradores podem remover qualquer fazenda; produtores, somente as próprias.
-      operationId: deleteFarm
-      security:
-        - cookieAuth: []
-      responses:
-        '204':
-          description: Fazenda removida
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /api/v1/producers/{idProducer}/harvests:
-    get:
-      tags: [Safras]
-      summary: Lista safras fechadas do produtor
-      operationId: listHarvests
-      security:
-        - cookieAuth: []
-      parameters:
-        - $ref: '#/components/parameters/IdProducer'
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
-        - name: idFarm
-          in: query
-          schema:
-            type: string
-            format: uuid
-        - name: year
-          in: query
-          schema:
-            $ref: '#/components/schemas/HarvestYear'
-      responses:
-        '200':
-          description: Lista paginada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HarvestList'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /api/v1/farms/{idFarm}/harvests:
+        "200": { description: Paginated farms }
     post:
-      tags: [Safras]
-      summary: Cria uma safra anual para a fazenda
-      description: Administradores podem criar para qualquer produtor; produtores, somente nas próprias fazendas. Uma fazenda aceita uma safra por ano.
-      operationId: createHarvest
-      security:
-        - cookieAuth: []
-      parameters:
-        - $ref: '#/components/parameters/IdFarm'
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/HarvestInput'
+            schema: { $ref: "#/components/schemas/CreateFarmInput" }
       responses:
-        '201':
-          description: Safra criada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HarvestResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-
+        "201": { description: Farm created }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/BusinessRuleError" }
+  /api/v1/farms/{id}:
+    parameters:
+      - {
+          name: id,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+    get:
+      responses:
+        "200": { description: Farm }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateFarmInput" }
+      responses:
+        "200": { description: Farm updated }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/BusinessRuleError" }
+    delete:
+      responses:
+        "204": { description: Farm deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/v1/harvests:
     get:
-      tags: [Safras]
-      summary: Lista safras no contexto administrativo
-      description: Exclusivo para administradores. Sem idProducer, retorna safras de todos os produtores.
-      operationId: listAllHarvests
-      security:
-        - cookieAuth: []
       parameters:
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
-        - name: idProducer
-          in: query
-          schema: { type: string, format: uuid }
-        - name: idFarm
-          in: query
-          schema: { type: string, format: uuid }
-        - name: year
-          in: query
-          schema: { $ref: '#/components/schemas/HarvestYear' }
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/Limit" }
+        - {
+            name: idProducer,
+            in: query,
+            schema: { type: string, format: uuid },
+          }
+        - { name: idFarm, in: query, schema: { type: string, format: uuid } }
+        - {
+            name: year,
+            in: query,
+            schema: { type: integer, minimum: 2000, maximum: 2100 },
+          }
       responses:
-        '200':
-          description: Lista paginada
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/HarvestList' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-
-  /api/v1/harvests/{idHarvest}:
-    parameters:
-      - $ref: '#/components/parameters/IdHarvest'
-    patch:
-      tags: [Safras]
-      summary: Atualiza fazenda, ano ou culturas de uma safra
-      description: Administradores podem alterar qualquer safra; produtores, somente as safras das próprias fazendas.
-      operationId: updateHarvest
-      security:
-        - cookieAuth: []
+        "200": { description: Paginated harvests }
+    post:
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateHarvestInput'
+            schema: { $ref: "#/components/schemas/CreateHarvestInput" }
       responses:
-        '200':
-          description: Safra atualizada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HarvestResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-    delete:
-      tags: [Safras]
-      summary: Remove uma safra
-      description: Administradores podem remover qualquer safra; produtores, somente as safras das próprias fazendas.
-      operationId: deleteHarvest
-      security:
-        - cookieAuth: []
-      responses:
-        '204':
-          description: Safra removida
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /api/v1/producers/{idProducer}/dashboard:
+        "201": { description: Harvest created }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /api/v1/harvests/{id}:
+    parameters:
+      - {
+          name: id,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
     get:
-      tags: [Dashboard]
-      summary: Consolida os dados do dashboard do produtor
-      operationId: getDashboard
-      security:
-        - cookieAuth: []
-      parameters:
-        - $ref: '#/components/parameters/IdProducer'
-        - name: year
-          in: query
-          description: Ano fechado da safra; usa o mais recente quando omitido.
-          schema:
-            $ref: '#/components/schemas/HarvestYear'
       responses:
-        '200':
-          description: Métricas e séries do dashboard
+        "200": { description: Harvest }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateHarvestInput" }
+      responses:
+        "200": { description: Harvest updated }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+    delete:
+      responses:
+        "204": { description: Harvest deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/audits:
+    get:
+      summary: List audit log entries
+      parameters:
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/Limit" }
+        - {
+            name: operation,
+            in: query,
+            schema: { $ref: "#/components/schemas/AuditOperation" },
+          }
+        - {
+            name: resource,
+            in: query,
+            schema: { $ref: "#/components/schemas/AuditResource" },
+          }
+        - {
+            name: outcome,
+            in: query,
+            schema: { $ref: "#/components/schemas/AuditOutcome" },
+          }
+        - { name: idActor, in: query, schema: { type: string, format: uuid } }
+        - {
+            name: from,
+            in: query,
+            description: "Inclusive UTC day start (YYYY-MM-DD)",
+            schema: { type: string, format: date },
+          }
+        - {
+            name: to,
+            in: query,
+            description: "Exclusive next-day UTC start (YYYY-MM-DD)",
+            schema: { type: string, format: date },
+          }
+        - { name: search, in: query, schema: { type: string, maxLength: 160 } }
+      responses:
+        "200":
+          description: Paginated audit log entries newest first
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/DashboardResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
+              schema: { $ref: "#/components/schemas/AuditListResponse" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/v1/dashboard:
     get:
-      tags: [Dashboard]
-      summary: Consolida a visão geral administrativa
-      description: Exclusivo para administradores; agrega produtores, fazendas, safras e culturas.
-      operationId: getGeneralDashboard
-      security:
-        - cookieAuth: []
       parameters:
-        - name: year
-          in: query
-          schema: { $ref: '#/components/schemas/HarvestYear' }
+        - {
+            name: idProducer,
+            in: query,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: year,
+            in: query,
+            schema: { type: integer, minimum: 2000, maximum: 2100 },
+          }
       responses:
-        '200':
-          description: Métricas e séries gerais
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [data]
-                properties:
-                  data: { $ref: '#/components/schemas/GeneralDashboard' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-
-  /api/v1/audit:
-    get:
-      tags: [Auditoria]
-      summary: Lista todas as ações registradas
-      description: Exclusivo para administradores.
-      operationId: listAuditEvents
-      security:
-        - cookieAuth: []
-      parameters:
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
-        - name: idUser
-          in: query
-          schema:
-            type: string
-            format: uuid
-        - name: action
-          in: query
-          schema:
-            $ref: '#/components/schemas/AuditAction'
-        - name: from
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: to
-          in: query
-          schema:
-            type: string
-            format: date
-      responses:
-        '200':
-          description: Eventos paginados
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuditList'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
+        "200": { description: General or producer-filtered dashboard }
+        "404": { $ref: "#/components/responses/NotFound" }
 components:
   securitySchemes:
     cookieAuth:
       type: apiKey
       in: cookie
-      name: adonis-session
-
+      name: agbrain-session
   parameters:
-    IdProducer:
-      name: idProducer
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
-    IdFarm:
-      name: idFarm
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
-    IdHarvest:
-      name: idHarvest
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
     Page:
-      name: page
-      in: query
-      schema:
-        type: integer
-        minimum: 1
-        default: 1
+      {
+        name: page,
+        in: query,
+        schema: { type: integer, minimum: 1, default: 1 },
+      }
     Limit:
-      name: limit
-      in: query
-      schema:
-        type: integer
-        minimum: 1
-        maximum: 100
-        default: 20
-
+      {
+        name: limit,
+        in: query,
+        schema: { type: integer, minimum: 1, maximum: 100, default: 20 },
+      }
   responses:
     Unauthorized:
-      description: Sessão ausente, expirada ou credenciais inválidas
+      description: Missing or invalid session
       content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    Forbidden:
-      description: Usuário sem permissão para o recurso
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    NotFound:
-      description: Recurso não encontrado
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    Conflict:
-      description: Conflito com um registro existente
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     ValidationError:
-      description: Corpo ou parâmetros inválidos
+      description: Invalid HTTP input
       content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Resource not found
+      content:
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Conflict:
+      description: Unique resource conflict
+      content:
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    BusinessRuleError:
+      description: Business rule violation
+      content:
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
   schemas:
-    UserRole:
-      type: string
-      enum: [ADMIN, PRODUCER]
-    UserStatus:
-      type: string
-      enum: [ACTIVE, INACTIVE]
-    DocumentType:
-      type: string
-      enum: [CPF, CNPJ]
-    State:
-      type: string
-      pattern: '^[A-Z]{2}$'
-      example: MT
-    HarvestYear:
-      type: integer
-      minimum: 2000
-      maximum: 2100
-      example: 2026
-    AuditAction:
-      type: string
-      enum: [LOGIN, LOGOUT, CREATE, UPDATE, DELETE, VIEW_DASHBOARD]
-
-    ErrorResponse:
+    Error:
       type: object
-      required: [error]
+      required: [error, requestId]
       properties:
         error:
           type: object
           required: [code, message]
           properties:
-            code:
-              type: string
-            message:
-              type: string
-            details:
-              type: array
-              items:
-                type: object
-                additionalProperties: true
-        requestId:
-          type: string
-
-    Health:
-      type: object
-      required: [status, checks, timestamp]
-      properties:
-        status:
-          type: string
-          enum: [ok, error]
-        checks:
-          type: object
-          required: [database]
-          properties:
-            database:
-              type: string
-              enum: [up, down]
-        timestamp:
-          type: string
-          format: date-time
-
+            code: { type: string }
+            message: { type: string }
+            details: { type: array, items: {} }
+        requestId: { type: string, format: uuid }
     LoginInput:
       type: object
       required: [email, password]
       properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-          minLength: 7
-          maxLength: 128
-
-    SessionUser:
-      type: object
-      required: [idUser, name, email, role]
-      properties:
-        idUser:
-          type: string
-          format: uuid
-        idProducer:
-          type: string
-          format: uuid
-        name:
-          type: string
-        email:
-          type: string
-          format: email
-        role:
-          $ref: '#/components/schemas/UserRole'
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, maxLength: 128 }
     SessionResponse:
       type: object
-      required: [user]
       properties:
         user:
-          $ref: '#/components/schemas/SessionUser'
-
-    PaginationMeta:
-      type: object
-      required: [total]
-      properties:
-        page:
-          type: integer
-        currentPage:
-          type: integer
-        limit:
-          type: integer
-        perPage:
-          type: integer
-        total:
-          type: integer
-        lastPage:
-          type: integer
-      additionalProperties: true
-
-    Producer:
-      type: object
-      required:
-        [
-          idProducer,
-          idUser,
-          name,
-          documentType,
-          document,
-          email,
-          city,
-          state,
-          status,
-          farmCount,
-          totalHectares,
-        ]
-      properties:
-        idProducer:
-          type: string
-          format: uuid
-        idUser:
-          type: string
-          format: uuid
-        name:
-          type: string
-        documentType:
-          $ref: '#/components/schemas/DocumentType'
-        document:
-          type: string
-        email:
-          type: string
-          format: email
-        city:
-          type: string
-        state:
-          $ref: '#/components/schemas/State'
-        status:
-          $ref: '#/components/schemas/UserStatus'
-        farmCount:
-          type: integer
-        totalHectares:
-          type: number
+          type: object
+          properties:
+            idUser: { type: string, format: uuid }
+            name: { type: string }
+            email: { type: string, format: email }
+    DocumentType: { type: string, enum: [CPF, CNPJ] }
+    ProducerStatus: { type: string, enum: [ACTIVE, INACTIVE] }
     CreateProducerInput:
       type: object
-      required: [name, documentType, document, email, city, state, status]
+      required: [name, documentType, document, email, city, state]
       properties:
-        name:
-          type: string
-          minLength: 2
-          maxLength: 160
-        documentType:
-          $ref: '#/components/schemas/DocumentType'
+        name: { type: string, maxLength: 160 }
+        documentType: { $ref: "#/components/schemas/DocumentType" }
         document:
-          type: string
-        email:
-          type: string
-          format: email
-        city:
-          type: string
-        state:
-          $ref: '#/components/schemas/State'
-        status:
-          $ref: '#/components/schemas/UserStatus'
-        password:
-          type: string
-          minLength: 7
-          maxLength: 128
+          {
+            type: string,
+            description: CPF or numeric/alphanumeric CNPJ,
+            masked or canonical,
+          }
+        email: { type: string, format: email }
+        city: { type: string, maxLength: 120 }
+        state: { type: string, minLength: 2, maxLength: 2 }
+        status: { $ref: "#/components/schemas/ProducerStatus" }
     UpdateProducerInput:
       type: object
       properties:
-        name:
-          type: string
-          minLength: 2
-          maxLength: 160
-        documentType:
-          $ref: '#/components/schemas/DocumentType'
+        name: { type: string, maxLength: 160 }
+        documentType: { $ref: "#/components/schemas/DocumentType" }
         document:
-          type: string
-        email:
-          type: string
-          format: email
-        city:
-          type: string
-        state:
-          $ref: '#/components/schemas/State'
-        status:
-          $ref: '#/components/schemas/UserStatus'
-    ProducerResponse:
+          {
+            type: string,
+            description: CPF or numeric/alphanumeric CNPJ,
+            masked or canonical,
+          }
+        email: { type: string, format: email }
+        city: { type: string, maxLength: 120 }
+        state: { type: string, minLength: 2, maxLength: 2 }
+        status: { $ref: "#/components/schemas/ProducerStatus" }
+    CreateFarmInput:
       type: object
-      required: [data]
+      required:
+        [
+          idProducer,
+          name,
+          city,
+          state,
+          totalArea,
+          agriculturalArea,
+          vegetationArea,
+        ]
       properties:
-        data:
-          $ref: '#/components/schemas/Producer'
-    ProducerList:
-      type: object
-      required: [data, meta]
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/Producer'
-        meta:
-          $ref: '#/components/schemas/PaginationMeta'
-
-    Farm:
-      type: object
-      required: [idFarm, idProducer, name, city, state, totalArea, agriculturalArea, vegetationArea]
-      properties:
-        idFarm:
-          type: string
-          format: uuid
-        idProducer:
-          type: string
-          format: uuid
-        producerName:
-          type: string
-        name:
-          type: string
-        city:
-          type: string
-        state:
-          $ref: '#/components/schemas/State'
-        totalArea:
-          type: number
-          exclusiveMinimum: 0
-        agriculturalArea:
-          type: number
-          minimum: 0
-        vegetationArea:
-          type: number
-          minimum: 0
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-    FarmInput:
-      type: object
-      required: [name, city, state, totalArea, agriculturalArea, vegetationArea]
-      properties:
-        name:
-          type: string
-          minLength: 2
-          maxLength: 160
-        city:
-          type: string
-          minLength: 2
-          maxLength: 120
-        state:
-          $ref: '#/components/schemas/State'
-        totalArea:
-          type: number
-          exclusiveMinimum: 0
-        agriculturalArea:
-          type: number
-          minimum: 0
-        vegetationArea:
-          type: number
-          minimum: 0
+        idProducer: { type: string, format: uuid }
+        name: { type: string, maxLength: 160 }
+        city: { type: string, maxLength: 120 }
+        state: { type: string, minLength: 2, maxLength: 2 }
+        totalArea: { type: number, exclusiveMinimum: 0 }
+        agriculturalArea: { type: number, minimum: 0 }
+        vegetationArea: { type: number, minimum: 0 }
     UpdateFarmInput:
       type: object
       properties:
-        name:
-          type: string
-          minLength: 2
-          maxLength: 160
-        city:
-          type: string
-          minLength: 2
-          maxLength: 120
-        state:
-          $ref: '#/components/schemas/State'
-        totalArea:
-          type: number
-          exclusiveMinimum: 0
-        agriculturalArea:
-          type: number
-          minimum: 0
-        vegetationArea:
-          type: number
-          minimum: 0
-    FarmResponse:
+        name: { type: string, maxLength: 160 }
+        city: { type: string, maxLength: 120 }
+        state: { type: string, minLength: 2, maxLength: 2 }
+        totalArea: { type: number, exclusiveMinimum: 0 }
+        agriculturalArea: { type: number, minimum: 0 }
+        vegetationArea: { type: number, minimum: 0 }
+    CreateHarvestInput:
       type: object
-      required: [data]
+      required: [idFarm, year, crops]
       properties:
-        data:
-          $ref: '#/components/schemas/Farm'
-    FarmList:
-      type: object
-      required: [data, meta]
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/Farm'
-        meta:
-          $ref: '#/components/schemas/PaginationMeta'
-
-    Crop:
-      type: object
-      required: [idCrop, name]
-      properties:
-        idCrop:
-          type: string
-          format: uuid
-        name:
-          type: string
-    Harvest:
-      type: object
-      required: [idHarvest, idFarm, idProducer, farmName, producerName, year, crops]
-      properties:
-        idHarvest:
-          type: string
-          format: uuid
-        idFarm:
-          type: string
-          format: uuid
-        idProducer:
-          type: string
-          format: uuid
-        farmName:
-          type: string
-        producerName:
-          type: string
-        year:
-          $ref: '#/components/schemas/HarvestYear'
+        idFarm: { type: string, format: uuid }
+        year: { type: integer, minimum: 2000, maximum: 2100 }
         crops:
-          type: array
-          items:
-            $ref: '#/components/schemas/Crop'
-    HarvestInput:
-      type: object
-      required: [year, crops]
-      properties:
-        year:
-          $ref: '#/components/schemas/HarvestYear'
-        crops:
-          type: array
-          maxItems: 30
-          items:
-            type: string
-            minLength: 2
-            maxLength: 100
+          {
+            type: array,
+            minItems: 1,
+            maxItems: 30,
+            items: { type: string, maxLength: 100 },
+          }
     UpdateHarvestInput:
       type: object
       properties:
-        idFarm:
-          type: string
-          format: uuid
-        year:
-          $ref: '#/components/schemas/HarvestYear'
+        idFarm: { type: string, format: uuid }
+        year: { type: integer, minimum: 2000, maximum: 2100 }
         crops:
-          type: array
-          maxItems: 30
-          items:
-            type: string
-    HarvestResponse:
+          {
+            type: array,
+            minItems: 1,
+            maxItems: 30,
+            items: { type: string, maxLength: 100 },
+          }
+    AuditOperation:
+      type: string
+      enum:
+        - auth.login
+        - auth.logout
+        - producer.create
+        - producer.update
+        - producer.delete
+        - farm.create
+        - farm.update
+        - farm.delete
+        - harvest.create
+        - harvest.update
+        - harvest.delete
+    AuditResource:
+      type: string
+      enum: [SESSION, PRODUCER, FARM, HARVEST]
+    AuditOutcome:
+      type: string
+      enum: [SUCCESS, FAILURE]
+    AuditLog:
       type: object
-      required: [data]
+      required:
+        [
+          idAudit,
+          operation,
+          resource,
+          outcome,
+          statusCode,
+          metadata,
+          occurredAt,
+        ]
       properties:
-        data:
-          $ref: '#/components/schemas/Harvest'
-    HarvestList:
+        idAudit: { type: string, format: uuid }
+        operation: { $ref: "#/components/schemas/AuditOperation" }
+        resource: { $ref: "#/components/schemas/AuditResource" }
+        idResource: { type: string, format: uuid, nullable: true }
+        outcome: { $ref: "#/components/schemas/AuditOutcome" }
+        idActor: { type: string, format: uuid, nullable: true }
+        actorName: { type: string, nullable: true }
+        actorEmail: { type: string, format: email, nullable: true }
+        statusCode: { type: integer }
+        errorCode: { type: string, nullable: true }
+        errorMessage: { type: string, nullable: true }
+        requestId: { type: string, nullable: true }
+        ipAddress: { type: string, nullable: true }
+        userAgent: { type: string, nullable: true }
+        metadata: { type: object }
+        occurredAt: { type: string, format: date-time }
+    AuditListResponse:
       type: object
       required: [data, meta]
       properties:
         data:
           type: array
-          items:
-            $ref: '#/components/schemas/Harvest'
+          items: { $ref: "#/components/schemas/AuditLog" }
         meta:
-          $ref: '#/components/schemas/PaginationMeta'
-
-    ChartPoint:
-      type: object
-      required: [name, value]
-      properties:
-        name:
-          type: string
-        value:
-          type: number
-    AreaProgressPoint:
-      type: object
-      required: [month, hectares]
-      properties:
-        month:
-          type: string
-          example: ago
-        hectares:
-          type: number
-    Dashboard:
-      type: object
-      required:
-        [
-          scope,
-          idProducer,
-          producerName,
-          year,
-          availableYears,
-          totalFarms,
-          totalHectares,
-          activeCrops,
-          states,
-          crops,
-          soilUse,
-          areaProgress,
-        ]
-      properties:
-        scope:
-          type: string
-          const: PRODUCER
-        idProducer:
-          type: string
-          format: uuid
-        producerName:
-          type: string
-        year:
-          $ref: '#/components/schemas/HarvestYear'
-        availableYears:
-          type: array
-          items:
-            $ref: '#/components/schemas/HarvestYear'
-        totalFarms:
-          type: integer
-        totalHectares:
-          type: number
-        activeCrops:
-          type: integer
-        states:
-          type: array
-          items:
-            $ref: '#/components/schemas/ChartPoint'
-        crops:
-          type: array
-          items:
-            $ref: '#/components/schemas/ChartPoint'
-        soilUse:
-          type: array
-          items:
-            $ref: '#/components/schemas/ChartPoint'
-        areaProgress:
-          type: array
-          items:
-            $ref: '#/components/schemas/AreaProgressPoint'
-    GeneralDashboard:
-      type: object
-      required:
-        [
-          scope,
-          year,
-          availableYears,
-          totalProducers,
-          activeProducers,
-          inactiveProducers,
-          totalFarms,
-          totalHectares,
-          activeCrops,
-          producerStatus,
-          producerStates,
-          farmStates,
-          crops,
-          soilUse,
-          areaProgress,
-          topProducers,
-        ]
-      properties:
-        scope: { type: string, const: GENERAL }
-        year: { $ref: '#/components/schemas/HarvestYear' }
-        availableYears:
-          type: array
-          items: { $ref: '#/components/schemas/HarvestYear' }
-        totalProducers: { type: integer }
-        activeProducers: { type: integer }
-        inactiveProducers: { type: integer }
-        totalFarms: { type: integer }
-        totalHectares: { type: number }
-        activeCrops: { type: integer }
-        producerStatus:
-          type: array
-          items: { $ref: '#/components/schemas/ChartPoint' }
-        producerStates:
-          type: array
-          items: { $ref: '#/components/schemas/ChartPoint' }
-        farmStates:
-          type: array
-          items: { $ref: '#/components/schemas/ChartPoint' }
-        crops:
-          type: array
-          items: { $ref: '#/components/schemas/ChartPoint' }
-        soilUse:
-          type: array
-          items: { $ref: '#/components/schemas/ChartPoint' }
-        areaProgress:
-          type: array
-          items: { $ref: '#/components/schemas/AreaProgressPoint' }
-        topProducers:
-          type: array
-          items:
-            type: object
-            required: [idProducer, name, farmCount, totalHectares]
-            properties:
-              idProducer: { type: string, format: uuid }
-              name: { type: string }
-              farmCount: { type: integer }
-              totalHectares: { type: number }
-    DashboardResponse:
-      type: object
-      required: [data]
-      properties:
-        data:
-          $ref: '#/components/schemas/Dashboard'
-
-    AuditEvent:
-      type: object
-      required:
-        [idAudit, userName, userRole, action, resourceType, resourceName, metadata, occurredAt]
-      properties:
-        idAudit:
-          type: string
-          format: uuid
-        idUser:
-          type: [string, 'null']
-          format: uuid
-        userName:
-          type: string
-        userRole:
-          $ref: '#/components/schemas/UserRole'
-        action:
-          $ref: '#/components/schemas/AuditAction'
-        resourceType:
-          type: string
-        resourceName:
-          type: string
-        idResource:
-          type: [string, 'null']
-          format: uuid
-        requestId:
-          type: [string, 'null']
-        metadata:
           type: object
-          additionalProperties: true
-        occurredAt:
-          type: string
-          format: date-time
-    AuditList:
-      type: object
-      required: [data, meta]
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/AuditEvent'
-        meta:
-          $ref: '#/components/schemas/PaginationMeta'
+          required: [page, limit, total, lastPage]
+          properties:
+            page: { type: integer }
+            limit: { type: integer }
+            total: { type: integer }
+            lastPage: { type: integer }
+
+security:
+  - cookieAuth: []

@@ -1,0 +1,623 @@
+{
+  "info": {
+    "_postman_id": "5e2aa25c-1bb5-4e03-97bb-f588973e91bd",
+    "name": "AgBrain API",
+    "description": "Complete AgBrain API workflow. Run with the AgBrain Local environment. Postman keeps the HTTP-only session cookie automatically. The collection creates its own producer, farm and harvest, validates the main success and error paths, then removes the created data.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "producerDocument", "value": "" },
+    { "key": "producerEmail", "value": "" },
+    { "key": "farmName", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Health returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Database is up', () => pm.expect(pm.response.json().checks.database).to.eql('up'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "description": "Login establishes the agbrain-session HTTP-only cookie used automatically by subsequent requests.",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Login returns the administrator', () => pm.expect(body.user.email).to.eql(pm.environment.get('adminEmail')));",
+                  "pm.environment.set('idUser', body.user.idUser);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Current session",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/auth/me" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Session returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Session user matches login', () => pm.expect(pm.response.json().user.idUser).to.eql(pm.environment.get('idUser')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Producers",
+      "item": [
+        {
+          "name": "Create producer",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "function cpfDigit(values, factor) {",
+                  "  const total = values.reduce((sum, value, index) => sum + value * (factor - index), 0);",
+                  "  const digit = (total * 10) % 11;",
+                  "  return digit === 10 ? 0 : digit;",
+                  "}",
+                  "const base = String(Date.now()).slice(-9).split('').map(Number);",
+                  "const first = cpfDigit(base, 10);",
+                  "const second = cpfDigit([...base, first], 11);",
+                  "pm.collectionVariables.set('producerDocument', [...base, first, second].join(''));",
+                  "pm.collectionVariables.set('producerEmail', `postman.${Date.now()}@example.com`);",
+                  "pm.collectionVariables.set('farmName', `Fazenda Postman ${Date.now()}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Producer is created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('producerId', body.data.idProducer);",
+                  "pm.test('Document is preserved', () => pm.expect(body.data.document).to.eql(pm.collectionVariables.get('producerDocument')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Produtor Postman\",\n  \"documentType\": \"CPF\",\n  \"document\": \"{{producerDocument}}\",\n  \"email\": \"{{producerEmail}}\",\n  \"city\": \"Rio Verde\",\n  \"state\": \"GO\",\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/producers"
+          }
+        },
+        {
+          "name": "List producers",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/producers?page=1&limit=20&status=ACTIVE&search=Postman"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Producer list returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('List is paginated', () => pm.expect(pm.response.json()).to.have.keys('data', 'meta'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get producer",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/producers/{{producerId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Producer returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Producer ID matches', () => pm.expect(pm.response.json().data.idProducer).to.eql(pm.environment.get('producerId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update producer",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Produtor Postman Atualizado\",\n  \"city\": \"Jataí\",\n  \"state\": \"GO\",\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/producers/{{producerId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Producer is updated', () => pm.response.to.have.status(200));",
+                  "pm.test('Updated name is returned', () => pm.expect(pm.response.json().data.name).to.eql('Produtor Postman Atualizado'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Farms",
+      "item": [
+        {
+          "name": "Create farm for producer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idProducer\": \"{{producerId}}\",\n  \"name\": \"{{farmName}}\",\n  \"city\": \"Rio Verde\",\n  \"state\": \"GO\",\n  \"totalArea\": 500,\n  \"agriculturalArea\": 350,\n  \"vegetationArea\": 150\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/farms"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Farm is created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('farmId', body.data.idFarm);",
+                  "pm.test('Farm belongs to producer', () => pm.expect(body.data.idProducer).to.eql(pm.environment.get('producerId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List producer farms",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/farms?idProducer={{producerId}}&page=1&limit=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Farm list returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Every farm belongs to the producer', () => pm.response.json().data.forEach(farm => pm.expect(farm.idProducer).to.eql(pm.environment.get('producerId'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get farm",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/farms/{{farmId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Farm returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Producer name is included', () => pm.expect(pm.response.json().data.producerName).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update farm areas",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totalArea\": 540,\n  \"agriculturalArea\": 370,\n  \"vegetationArea\": 170\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/farms/{{farmId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Farm is updated', () => pm.response.to.have.status(200));",
+                  "pm.test('Updated total area is returned', () => pm.expect(pm.response.json().data.totalArea).to.eql(540));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Harvests",
+      "item": [
+        {
+          "name": "Create harvest",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idFarm\": \"{{farmId}}\",\n  \"year\": {{harvestYear}},\n  \"crops\": [\"Soja\", \"Milho\", \"Algodão\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/harvests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Harvest is created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('harvestId', body.data.idHarvest);",
+                  "pm.test('Three crops are returned', () => pm.expect(body.data.crops).to.have.length(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List farm harvests",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/harvests?idProducer={{producerId}}&idFarm={{farmId}}&year={{harvestYear}}&page=1&limit=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Harvest list returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Harvest belongs to farm', () => pm.expect(pm.response.json().data[0].idFarm).to.eql(pm.environment.get('farmId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get harvest",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/harvests/{{harvestId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Harvest returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Farm and producer names are included', () => { const data = pm.response.json().data; pm.expect(data.farmName).to.be.a('string'); pm.expect(data.producerName).to.be.a('string'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Replace harvest crops",
+          "description": "Regression coverage: updating with fewer crops must remove the omitted harvest-crop relationships.",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idFarm\": \"{{farmId}}\",\n  \"year\": {{harvestYear}},\n  \"crops\": [\"Soja\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/harvests/{{harvestId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Harvest is updated', () => pm.response.to.have.status(200));",
+                  "const crops = pm.response.json().data.crops;",
+                  "pm.test('Omitted crops were removed', () => { pm.expect(crops).to.have.length(1); pm.expect(crops[0].name).to.eql('Soja'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "General dashboard",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/dashboard?year={{harvestYear}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('General dashboard returns 200', () => pm.response.to.have.status(200));",
+                  "var generalDashboard = pm.response.json().data;",
+                  "pm.test('General dashboard contains KPIs and charts', () => { pm.expect(generalDashboard.scope).to.eql('GENERAL'); pm.expect(generalDashboard.totalFarms).to.be.a('number'); pm.expect(generalDashboard.totalHectares).to.be.a('number'); pm.expect(generalDashboard.states).to.be.an('array'); pm.expect(generalDashboard.crops).to.be.an('array'); pm.expect(generalDashboard.soilUse).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Producer dashboard",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/dashboard?idProducer={{producerId}}&year={{harvestYear}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Producer dashboard returns 200', () => pm.response.to.have.status(200));",
+                  "var producerDashboard = pm.response.json().data;",
+                  "pm.test('Dashboard is scoped to producer', () => { pm.expect(producerDashboard.scope).to.eql('PRODUCER'); pm.expect(producerDashboard.idProducer).to.eql(pm.environment.get('producerId')); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Intentional errors",
+      "description": "Representative intentional error branches. These requests must fail with their documented public errors.",
+      "item": [
+        {
+          "name": "Invalid farm area",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idProducer\": \"{{producerId}}\",\n  \"name\": \"Área Inválida\",\n  \"city\": \"Rio Verde\",\n  \"state\": \"GO\",\n  \"totalArea\": 100,\n  \"agriculturalArea\": 80,\n  \"vegetationArea\": 30\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/farms"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Invalid area returns 422', () => pm.response.to.have.status(422));",
+                  "pm.test('Error code is stable', () => pm.expect(pm.response.json().error.code).to.eql('E_INVALID_FARM_AREA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Duplicate farm-year harvest",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idFarm\": \"{{farmId}}\",\n  \"year\": {{harvestYear}},\n  \"crops\": [\"Milho\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/harvests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Duplicate harvest returns 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Conflict code is stable', () => pm.expect(pm.response.json().error.code).to.eql('E_CONFLICT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Producer not found",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/producers/00000000-0000-4000-8000-000000000099"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Missing producer returns 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Not-found code is stable', () => pm.expect(pm.response.json().error.code).to.eql('E_RESOURCE_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"incorrect-password\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Invalid login returns 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Credential error is public', () => pm.expect(pm.response.json().error.code).to.eql('E_INVALID_CREDENTIALS'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Audit",
+      "item": [
+        {
+          "name": "List audit logs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/audits?page=1&limit=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Audit list returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Audit list is read-only and paginated', () => pm.expect(pm.response.json()).to.have.keys('data', 'meta'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List failed audit logs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/audits?outcome=FAILURE&page=1&limit=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Filtered audit list returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returned logs are failures', () => pm.response.json().data.forEach(log => pm.expect(log.outcome).to.eql('FAILURE')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "description": "Run in order after the workflow. Deleting the farm or producer first would cascade into dependent records, but explicit cleanup verifies every delete endpoint.",
+      "item": [
+        {
+          "name": "Delete harvest",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/harvests/{{harvestId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Harvest is deleted', () => pm.response.to.have.status(204));",
+                  "pm.environment.unset('harvestId');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete farm",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/farms/{{farmId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Farm is deleted', () => pm.response.to.have.status(204));",
+                  "pm.environment.unset('farmId');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete producer",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/producers/{{producerId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Producer is deleted', () => pm.response.to.have.status(204));",
+                  "pm.environment.unset('producerId');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/auth/session"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Logout returns 204', () => pm.response.to.have.status(204));",
+                  "pm.environment.unset('idUser');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

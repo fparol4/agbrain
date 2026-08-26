@@ -8,8 +8,8 @@ services:
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
-      - agbrain_postgres:/var/lib/postgresql/data
-      - ./server/database/docker/01_create_test_database.sql:/docker-entrypoint-initdb.d/01_create_test_database.sql:ro
+      - agbrain_nest_postgres:/var/lib/postgresql/data
+      - ./server/docker/postgres/01-create-test-database.sql:/docker-entrypoint-initdb.d/01-create-test-database.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agbrain -d agbrain"]
       interval: 5s
@@ -17,31 +17,25 @@ services:
       retries: 10
 
   api:
-    build:
-      context: ./server
+    build: ./server
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3333
-      APP_URL: http://localhost:${API_PORT:-3334}
       CLIENT_URL: http://localhost:5173
-      APP_KEY: change-this-key-before-production-32chars
-      LOG_LEVEL: info
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: agbrain
       DB_PASSWORD: agbrain
       DB_DATABASE: agbrain
-      SESSION_DRIVER: database
+      SESSION_COOKIE: agbrain-session
       SESSION_SECURE_COOKIE: "false"
+      ADMIN_NAME: Administrator
+      ADMIN_EMAIL: admin@agbrain.local
+      ADMIN_PASSWORD: change-me
     ports:
       - "127.0.0.1:${API_PORT:-3334}:3333"
-    command:
-      [
-        "sh",
-        "-c",
-        "node ace migration:run --force && node ace db:seed && node bin/server.js",
-      ]
+    command: ["sh", "-c", "npm run db:seed:prod && npm start"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,20 +52,13 @@ services:
       retries: 10
 
   client:
-    build:
-      context: ./client
-      args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:3334}
+    build: ./client
     ports:
-      - "5173:80"
+      - "127.0.0.1:${CLIENT_PORT:-5173}:80"
     depends_on:
       api:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
 
 volumes:
-  agbrain_postgres:
+
+  agbrain_nest_postgres:
