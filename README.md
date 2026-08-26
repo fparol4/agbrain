@@ -6,14 +6,24 @@ Admin-only rural management CRM for managing producers, farms, crops, harvests, 
 
 - [`server`](server/README.md): NestJS 11, TypeORM, PostgreSQL 17, cookie-based sessions, and immutable audit logs.
 - [`client`](client/README.md): React 19, TypeScript, Vite, Tailwind CSS v4, shadcn/ui, and TanStack Query.
-- [`postman`](postman/README.md): Importable API collection and local environment.
+- [`docs/postman`](docs/postman/README.md): Importable API collection and local environment.
 
-## Running with Docker Compose
+## Run the complete stack
 
 ```bash
-docker compose up --build
+cp .env.example .env
+# Edit .env before the first startup.
+docker compose config
+docker compose up -d --build
 ```
 
-- Client: `http://localhost:5173`
-- Server API: `http://localhost:3334` (or `http://localhost:3333` in local dev)
-- PostgreSQL: `localhost:5433`
+The browser uses one address for both the client and `/api`. The API and
+PostgreSQL diagnostic ports only bind to the host loopback interface.
+
+- Application: `http://localhost` in the default local configuration
+- API diagnostics: `http://localhost:3334`
+- PostgreSQL diagnostics: `localhost:5433`
+
+Migrations and the idempotent initial seed run automatically before the API
+starts. See [DEPLOYMENT.md](DEPLOYMENT.md) for the Ubuntu VM checklist, HTTPS,
+updates, logs, and backups.

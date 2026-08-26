@@ -130,7 +130,8 @@ await dataSource.initialize();
 try {
   await dataSource.transaction(async (manager) => {
     const users = manager.getRepository(User);
-    const email = (process.env.ADMIN_EMAIL ?? "admin@admin.com").trim()
+    const email = (process.env.ADMIN_EMAIL ?? "admin@admin.com")
+      .trim()
       .toLowerCase();
     if (!(await users.findOneBy({ email }))) {
       await users.save(

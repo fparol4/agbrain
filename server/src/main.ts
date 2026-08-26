@@ -9,6 +9,7 @@ async function bootstrap() {
   await dataSource.destroy();
   const app = await NestFactory.create(AppModule);
   configureApp(app);
+  app.enableShutdownHooks();
   await app.listen(settings.port, settings.host);
 }
 

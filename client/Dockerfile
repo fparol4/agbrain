@@ -1,4 +1,3 @@
-# Stage 1: Build
 FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
@@ -6,9 +5,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Stage 2: Serve with Nginx
-FROM nginx:alpine AS runtime
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+FROM caddy:2-alpine AS runtime
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY --from=builder /app/dist /srv
+EXPOSE 80 443 443/udp

@@ -27,13 +27,19 @@ Handlers only handle HTTP. Use cases express application behavior. Module servic
 ```bash
 docker compose up -d postgres
 cd server
-cp .env.example .env
 npm install
 npm run db:seed
 npm run dev
 ```
 
-Migrations run automatically when the datasource starts. The API listens on `http://localhost:3333`. The default seed credentials come from `ADMIN_EMAIL` and `ADMIN_PASSWORD`; change them outside local development.
+The local process reads environment variables from `server/.env.test` only when
+running tests. For development, export the values documented in the root
+`.env.example` with `DB_HOST=127.0.0.1`, `DB_PORT=5433`, and `PORT=3333`, or run
+the complete Compose stack from the repository root.
+
+Migrations run automatically when the datasource starts. The default seed
+credentials come from `ADMIN_EMAIL` and `ADMIN_PASSWORD`; change them outside
+local development.
 
 ## API
 

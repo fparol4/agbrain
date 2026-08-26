@@ -31,6 +31,11 @@ npm run dev
 
 The client starts at `http://localhost:5173` and proxies `/api` and `/health` requests to `http://127.0.0.1:3333`.
 
+The production image uses Caddy to serve the static build, proxy the API on the
+same origin, and manage HTTPS when `APP_ADDRESS` contains a domain. The root
+Compose file owns this runtime configuration; no client build-time API URL is
+needed.
+
 ## Source Architecture
 
 ```text
